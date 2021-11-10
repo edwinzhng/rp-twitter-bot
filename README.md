@@ -5,7 +5,7 @@ Rocket Pool Twitter bot for daily network stat updates
 This bot tweets the output of `rocketpool network stats` from the
 [smartnode CLI](https://github.com/rocket-pool/smartnode) once a day:
 
-"""
+```
 ========== General Stats ==========
 Total Value Locked:      4306.428862 ETH
 Staking Pool Balance:    259.831000 ETH
@@ -28,4 +28,13 @@ rETH Price (ETH / rETH): 1.004352 ETH
 RPL Price (ETH / RPL):   0.011313 ETH
 Total RPL staked:        258704.257817 RPL
 Effective RPL staked:    43849.595604 RPL
-"""
+```
+
+## Development
+
+1. Copy `.env.sample` into a new file called `.env` and set the values to your Twitter API keys
+```
+cp .env.sample .env
+```
+
+2. TODO

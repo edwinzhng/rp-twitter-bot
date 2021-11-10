@@ -20,7 +20,9 @@ def _fetch_stats() -> Dict:
 
     client = Client(transport=transport, fetch_schema_from_transport=True)
     query = gql('''
-        query getRocketPoolNetworkStats {}
+        query getRocketPoolNetworkStats {
+            // TODO: fill in query
+        }
     ''')
 
     data = client.execute(query)
