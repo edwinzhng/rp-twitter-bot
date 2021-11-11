@@ -2,8 +2,8 @@
 
 Rocket Pool Twitter bot for daily network stat updates
 
-This bot tweets the output of `rocketpool network stats` from the
-[smartnode CLI](https://github.com/rocket-pool/smartnode) once a day:
+This bot tweets output similar to `rocketpool network stats` from the
+[smartnode CLI](https://github.com/rocket-pool/smartnode):
 
 ```
 ========== General Stats ==========

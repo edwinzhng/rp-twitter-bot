@@ -1,14 +1,49 @@
+import decimal
 import os
-from typing import Dict
+from time import time
+from typing import Dict, Tuple, Union
 
 import tweepy
 from gql import Client, gql
 from gql.transport.requests import RequestsHTTPTransport
+from web3 import Web3
 
-SUBGRAPH_API_URL = "https://api.thegraph.com/subgraphs/name/data-nexus/rocket-pool-goerli"
+TWEET_MSG = """
+========== General ==========
+Total Value Locked:      {tvl:.6f} ETH
+Staking Pool Balance:    {staker_eth_in_deposit_pool:.6f} ETH
+Minipool Queue Demand:   {queued_minipool_demand:.6f} ETH
+Staking Pool ETH Used:   {eth_used_percent:.4f}%
+
+============== Nodes ==============
+Current Commission Rate: {minipool_commission:.4f}%
+Registered Nodes:        {node_count}
+Oracle Nodes:            {oracle_node_count}
+Staking Minipools:       {staking_minipools}
+Queued Minipools:        {staking_minipools}
+
+============== Tokens =============
+rETH Price (ETH / rETH): {rETH_price:.6f} ETH
+RPL Price (ETH / RPL):   {rpl_price:.6f} ETH
+Total RPL staked:        {total_rpl_staked:.6f} RPL
+Effective RPL staked:    {effective_rpl_staked:.6f} RPL
+"""
+
+SUBGRAPH_API_URL = (
+    "https://gateway.thegraph.com/api/33bade4c82683211e74eec6acd7b8bb6/"
+    "subgraphs/id/0xa508c16666c5b8981fa46eb32784fccc01942a71-3"
+)
+STAKER_ETH_PER_MINIPOOL = 16
+ETH_PER_MINIPOOL = 32
 
 
-def _fetch_stats() -> Dict:
+def _wei_to_eth(val: Union[str, int]) -> decimal.Decimal:
+    if type(val) == str:
+        val = int(val)
+    return Web3.fromWei(val, 'ether')
+
+
+def _fetch_stats() -> Tuple[Dict, Dict]:
     transport = RequestsHTTPTransport(
         url=SUBGRAPH_API_URL,
         use_json=True,
@@ -20,13 +55,44 @@ def _fetch_stats() -> Dict:
 
     client = Client(transport=transport, fetch_schema_from_transport=True)
     query = gql('''
-        query getRocketPoolNetworkStats {
-            // TODO: fill in query
+        query protocolMetrics {
+            rocketPoolProtocols {
+                lastNetworkNodeBalanceCheckPoint {
+                    stakingMinipools
+                    queuedMinipools
+                    withdrawableMinipools
+                    stakingUnbondedMinipools
+                    totalFinalizedMinipools
+                    newMinipoolFee
+                    nodesRegistered
+                    oracleNodesRegistered
+                    rplPriceInETH
+                    rplStaked
+                    minimumEffectiveRPL
+                    maximumEffectiveRPL
+                    effectiveRPLStaked
+                    blockTime
+                }
+                lastNetworkStakerBalanceCheckPoint {
+                    stakerETHActivelyStaking
+                    stakerETHWaitingInDepositPool
+                    stakerETHInRocketETHContract
+                    stakerETHInProtocol
+                    rETHExchangeRate
+                    stakersWithAnRETHBalance
+                    totalRETHSupply
+                    blockTime
+                    totalStakerETHRewards
+                }
+            }
         }
     ''')
 
     data = client.execute(query)
-    return data
+    data = data["rocketPoolProtocols"][0]
+    node_stats = data["lastNetworkNodeBalanceCheckPoint"]
+    staker_stats = data["lastNetworkStakerBalanceCheckPoint"]
+    return node_stats, staker_stats
 
 
 def _auth_tweepy() -> tweepy.API:
@@ -42,7 +108,61 @@ def _auth_tweepy() -> tweepy.API:
     return tweepy.API(auth)
 
 
+def _is_valid_time_since_last_checkpoint(node_stats, staker_stats, max_hours=1) -> bool:
+    curr_time = int(time())
+    node_ckpt_diff_hours = (curr_time - int(node_stats["blockTime"])) / 3600
+    staker_ckpt_diff_hours = (curr_time - int(staker_stats["blockTime"])) / 3600
+    if node_ckpt_diff_hours > max_hours or staker_ckpt_diff_hours > max_hours:
+        print("Time since last checkpoint longer than {max_hours} hour(s), skipping tweet")
+        print(f"  Node checkpoint last updated {node_ckpt_diff_hours:.2f} hours ago")
+        print(f"  Staker checkpoint last updated {staker_ckpt_diff_hours:.2f} hours ago")
+        return False
+    return True
+
+
 def tweet_network_stats() -> None:
-    tweepy_api = _auth_tweepy()
-    stats = _fetch_stats()
-    # TODO: send tweet with stats
+    node_stats, staker_stats = _fetch_stats()
+    should_tweet = _is_valid_time_since_last_checkpoint(node_stats, staker_stats, 1)
+    if not should_tweet:
+        return
+
+    # Staking stats
+    staker_eth_in_deposit_pool = _wei_to_eth(staker_stats["stakerETHWaitingInDepositPool"])
+    staker_eth_in_protocol = _wei_to_eth(staker_stats["stakerETHInProtocol"])
+    eth_used_percent = (staker_eth_in_deposit_pool / staker_eth_in_protocol) * 100
+
+    # Node stats
+    minipool_commission = _wei_to_eth(node_stats["newMinipoolFee"]) * 100
+    queued_minipool_demand = int(node_stats["queuedMinipools"]) * STAKER_ETH_PER_MINIPOOL
+    node_count = int(node_stats["nodesRegistered"])
+    oracle_node_count = int(node_stats["oracleNodesRegistered"])
+    staking_minipools = int(node_stats["stakingMinipools"])
+
+    # Token stats
+    rETH_price = _wei_to_eth(staker_stats["rETHExchangeRate"])
+    rpl_price = _wei_to_eth(node_stats["rplPriceInETH"])
+    total_rpl_staked = _wei_to_eth(node_stats["rplStaked"])
+    effective_rpl_staked = _wei_to_eth(node_stats["effectiveRPLStaked"])
+
+    tvl = (staking_minipools * ETH_PER_MINIPOOL) + \
+            staker_eth_in_deposit_pool + (total_rpl_staked * rpl_price)
+
+    msg = TWEET_MSG.format(
+        tvl=tvl,
+        staker_eth_in_deposit_pool=staker_eth_in_deposit_pool,
+        eth_used_percent=eth_used_percent,
+        minipool_commission=minipool_commission,
+        queued_minipool_demand=queued_minipool_demand,
+        node_count=node_count,
+        oracle_node_count=oracle_node_count,
+        staking_minipools=staking_minipools,
+        rETH_price=rETH_price,
+        rpl_price=rpl_price,
+        total_rpl_staked=total_rpl_staked,
+        effective_rpl_staked=effective_rpl_staked
+    )
+    print(f"Sending tweet:\n{msg}")
+
+    # Send tweet
+    # api = _auth_tweepy()
+    # api.update_status(msg)
