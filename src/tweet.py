@@ -9,24 +9,20 @@ from gql.transport.requests import RequestsHTTPTransport
 from web3 import Web3
 
 TWEET_MSG = """
-========== General ==========
-Total Value Locked:      {tvl:.6f} ETH
-Staking Pool Balance:    {staker_eth_in_deposit_pool:.6f} ETH
-Minipool Queue Demand:   {queued_minipool_demand:.6f} ETH
-Staking Pool ETH Used:   {eth_used_percent:.4f}%
+💰 General 💰
+Total Value Locked: Ξ {tvl:.4f}
+Staking Pool Balance: Ξ {staker_eth_in_deposit_pool:.4f}
 
-============== Nodes ==============
-Current Commission Rate: {minipool_commission:.4f}%
-Registered Nodes:        {node_count}
-Oracle Nodes:            {oracle_node_count}
-Staking Minipools:       {staking_minipools}
-Queued Minipools:        {staking_minipools}
+🖥️ Nodes 🖥️
+Commission: {minipool_commission:.2f}%
+Registered Nodes: {node_count}
+Staking Minipools: {staking_minipools}
 
-============== Tokens =============
-rETH Price (ETH / rETH): {rETH_price:.6f} ETH
-RPL Price (ETH / RPL):   {rpl_price:.6f} ETH
-Total RPL staked:        {total_rpl_staked:.6f} RPL
-Effective RPL staked:    {effective_rpl_staked:.6f} RPL
+🪙 Tokens 🪙
+rETH Price: Ξ {rETH_price:.4f}
+RPL Price: Ξ {rpl_price:.4f}
+Total RPL staked: {total_rpl_staked:.2f} RPL
+Effective RPL staked: {effective_rpl_staked:.2f} RPL
 """
 
 SUBGRAPH_API_URL = (
@@ -113,7 +109,7 @@ def _is_valid_time_since_last_checkpoint(node_stats, staker_stats, max_hours=1) 
     node_ckpt_diff_hours = (curr_time - int(node_stats["blockTime"])) / 3600
     staker_ckpt_diff_hours = (curr_time - int(staker_stats["blockTime"])) / 3600
     if node_ckpt_diff_hours > max_hours or staker_ckpt_diff_hours > max_hours:
-        print("Time since last checkpoint longer than {max_hours} hour(s), skipping tweet")
+        print(f"Time since last checkpoint longer than {max_hours} hour(s), skipping tweet")
         print(f"  Node checkpoint last updated {node_ckpt_diff_hours:.2f} hours ago")
         print(f"  Staker checkpoint last updated {staker_ckpt_diff_hours:.2f} hours ago")
         return False
@@ -154,7 +150,6 @@ def tweet_network_stats() -> None:
         minipool_commission=minipool_commission,
         queued_minipool_demand=queued_minipool_demand,
         node_count=node_count,
-        oracle_node_count=oracle_node_count,
         staking_minipools=staking_minipools,
         rETH_price=rETH_price,
         rpl_price=rpl_price,
@@ -164,5 +159,5 @@ def tweet_network_stats() -> None:
     print(f"Sending tweet:\n{msg}")
 
     # Send tweet
-    # api = _auth_tweepy()
-    # api.update_status(msg)
+    api = _auth_tweepy()
+    api.update_status(msg)

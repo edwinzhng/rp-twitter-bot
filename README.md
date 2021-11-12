@@ -1,34 +1,25 @@
 # Rocket Pool Twitter Bot
 
-Rocket Pool Twitter bot for daily network stat updates
-
-This bot tweets output similar to `rocketpool network stats` from the
-[smartnode CLI](https://github.com/rocket-pool/smartnode):
+Rocket Pool Twitter bot for daily network stat updates:
 
 ```
-========== General Stats ==========
-Total Value Locked:      4306.428862 ETH
-Staking Pool Balance:    259.831000 ETH
-Minipool Queue Demand:   0.000000 ETH
-Staking Pool ETH Used:   34.443863%
+💰 General 💰
+Total Value Locked: Ξ 4882.7283
+Staking Pool Balance: Ξ 479.9918
 
-============== Nodes ==============
-Current Commission Rate: 15.000000%
-Node Count:              219
-Active Minipools:        35
-    Initialized:         0
-    Prelaunch:           7
-    Staking:             28
-    Withdrawable:        0
-    Dissolved:           0
-Inactive Minipools:      0
+🖥️ Nodes 🖥️
+Commission: 15.00%
+Registered Nodes: 244
+Staking Minipools: 34
 
-============== Tokens =============
-rETH Price (ETH / rETH): 1.004352 ETH
-RPL Price (ETH / RPL):   0.011313 ETH
-Total RPL staked:        258704.257817 RPL
-Effective RPL staked:    43849.595604 RPL
+🪙 Tokens 🪙
+rETH Price: Ξ 1.0044
+RPL Price: Ξ 0.0113
+Total RPL staked: 293754.22 RPL
+Effective RPL staked: 55691.80 RPL
 ```
+
+Data is pulled from the [Rocket Pool subgraph](https://github.com/Data-Nexus/rocket-pool-mainnet) created by [Data-Nexus](https://github.com/Data-Nexus) and [VGR](https://github.com/VGR-GIT).
 
 ## Development
 
