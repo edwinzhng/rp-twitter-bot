@@ -116,7 +116,7 @@ def _is_valid_time_since_last_checkpoint(node_stats, staker_stats, max_hours=1) 
     return True
 
 
-def tweet_network_stats() -> None:
+def _tweet_network_stats() -> None:
     node_stats, staker_stats = _fetch_stats()
     should_tweet = _is_valid_time_since_last_checkpoint(node_stats, staker_stats, 1)
     if not should_tweet:
@@ -131,7 +131,6 @@ def tweet_network_stats() -> None:
     minipool_commission = _wei_to_eth(node_stats["newMinipoolFee"]) * 100
     queued_minipool_demand = int(node_stats["queuedMinipools"]) * STAKER_ETH_PER_MINIPOOL
     node_count = int(node_stats["nodesRegistered"])
-    oracle_node_count = int(node_stats["oracleNodesRegistered"])
     staking_minipools = int(node_stats["stakingMinipools"])
 
     # Token stats
@@ -161,3 +160,9 @@ def tweet_network_stats() -> None:
     # Send tweet
     api = _auth_tweepy()
     api.update_status(msg)
+
+
+def lambda_handler(event, context):
+    """Entrypoint for deploying to AWS Lambda"""
+    _tweet_network_stats()
+    return
