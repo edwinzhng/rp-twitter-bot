@@ -1,5 +1,7 @@
 # Rocket Pool Twitter Bot
 
+[Twitter @RocketPoolBot](https://twitter.com/RocketPoolBot)
+
 Rocket Pool Twitter bot for daily network stat updates:
 
 ```
