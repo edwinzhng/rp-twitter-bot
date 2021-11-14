@@ -108,10 +108,11 @@ def _is_valid_time_since_last_checkpoint(node_stats, staker_stats, max_hours=1) 
     curr_time = int(time())
     node_ckpt_diff_hours = (curr_time - int(node_stats["blockTime"])) / 3600
     staker_ckpt_diff_hours = (curr_time - int(staker_stats["blockTime"])) / 3600
+    print(f"Node checkpoint last updated {node_ckpt_diff_hours:.2f} hours ago")
+    print(f"Staker checkpoint last updated {staker_ckpt_diff_hours:.2f} hours ago")
+
     if node_ckpt_diff_hours > max_hours or staker_ckpt_diff_hours > max_hours:
         print(f"Time since last checkpoint longer than {max_hours} hour(s), skipping tweet")
-        print(f"  Node checkpoint last updated {node_ckpt_diff_hours:.2f} hours ago")
-        print(f"  Staker checkpoint last updated {staker_ckpt_diff_hours:.2f} hours ago")
         return False
     return True
 
