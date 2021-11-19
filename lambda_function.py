@@ -1,4 +1,5 @@
 import decimal
+import math
 import os
 from time import time
 from typing import Dict, Tuple, Union
@@ -9,28 +10,48 @@ from gql.transport.requests import RequestsHTTPTransport
 from web3 import Web3
 
 TWEET_MSG = """
-💰 General 💰
-Total Value Locked: Ξ {tvl:.4f}
-Staking Pool Balance: Ξ {staker_eth_in_deposit_pool:.4f}
+💰 General
+TVL: Ξ {tvl} (${tvl_usd})
+Staking Pool Balance: Ξ {staker_eth_in_deposit_pool}
 
-🖥️ Nodes 🖥️
+🖥️ Nodes
 Commission: {minipool_commission:.2f}%
 Registered Nodes: {node_count}
 Staking Minipools: {staking_minipools}
+Total ETH Validator Share: {percent_validators:.3f}%
 
-🪙 Tokens 🪙
-rETH Price: Ξ {rETH_price:.4f}
-RPL Price: Ξ {rpl_price:.4f}
-Total RPL staked: {total_rpl_staked:.2f} RPL
-Effective RPL staked: {effective_rpl_staked:.2f} RPL
+🪙 Tokens
+rETH Price: Ξ {rETH_price:.5f}
+RPL Price: Ξ {rpl_price:.5f}
+Total RPL staked: {total_rpl_staked}
+Effective RPL staked: {effective_rpl_staked}
 """
 
-SUBGRAPH_API_URL = (
-    "https://gateway.thegraph.com/api/33bade4c82683211e74eec6acd7b8bb6/"
-    "subgraphs/id/0xa508c16666c5b8981fa46eb32784fccc01942a71-3"
-)
+SUBGRAPH_BASE_URL = "https://gateway.thegraph.com/api/"
+SUBGRAPH_API_URL = "subgraphs/id/0xa508c16666c5b8981fa46eb32784fccc01942a71-3"
 STAKER_ETH_PER_MINIPOOL = 16
 ETH_PER_MINIPOOL = 32
+
+
+NUMBER_SYMBOLS = ['', 'k', 'M', 'B', 'T']
+
+
+def _pretty_print_num(n) -> str:
+    """Convert numbers to a more readable format, eg) 115.5k, 12.3M"""
+    n = float(n)
+    symbol_idx = max(
+        0,
+        min(
+            len(NUMBER_SYMBOLS) - 1,
+            int(math.floor(0 if n == 0 else math.log10(abs(n)) / 3))
+        )
+    )
+
+    return '{:.{precision}f}{}'.format(
+        n / 10**(3 * symbol_idx),
+        NUMBER_SYMBOLS[symbol_idx],
+        precision=2 if n < 10000 else 1
+    )
 
 
 def _wei_to_eth(val: Union[str, int]) -> decimal.Decimal:
@@ -39,9 +60,11 @@ def _wei_to_eth(val: Union[str, int]) -> decimal.Decimal:
     return Web3.fromWei(val, 'ether')
 
 
-def _fetch_stats() -> Tuple[Dict, Dict]:
+def _fetch_rocketpool_stats() -> Tuple[Dict, Dict]:
+    subgraph_api_key = os.getenv("SUBGRAPH_API_KEY")
+    url = SUBGRAPH_BASE_URL + f"{subgraph_api_key}/" + SUBGRAPH_API_URL
     transport = RequestsHTTPTransport(
-        url=SUBGRAPH_API_URL,
+        url=url,
         use_json=True,
         headers={
             "Content-type": "application/json",
@@ -55,30 +78,17 @@ def _fetch_stats() -> Tuple[Dict, Dict]:
             rocketPoolProtocols {
                 lastNetworkNodeBalanceCheckPoint {
                     stakingMinipools
-                    queuedMinipools
-                    withdrawableMinipools
-                    stakingUnbondedMinipools
-                    totalFinalizedMinipools
                     newMinipoolFee
                     nodesRegistered
-                    oracleNodesRegistered
                     rplPriceInETH
                     rplStaked
-                    minimumEffectiveRPL
-                    maximumEffectiveRPL
                     effectiveRPLStaked
                     blockTime
                 }
                 lastNetworkStakerBalanceCheckPoint {
-                    stakerETHActivelyStaking
                     stakerETHWaitingInDepositPool
-                    stakerETHInRocketETHContract
-                    stakerETHInProtocol
                     rETHExchangeRate
-                    stakersWithAnRETHBalance
-                    totalRETHSupply
                     blockTime
-                    totalStakerETHRewards
                 }
             }
         }
@@ -89,6 +99,12 @@ def _fetch_stats() -> Tuple[Dict, Dict]:
     node_stats = data["lastNetworkNodeBalanceCheckPoint"]
     staker_stats = data["lastNetworkStakerBalanceCheckPoint"]
     return node_stats, staker_stats
+
+
+def _fetch_eth_stats() -> Tuple[float, float]:
+    eth_price_usd = 4200
+    active_eth_validators = 250000
+    return eth_price_usd, active_eth_validators
 
 
 def _auth_tweepy() -> tweepy.API:
@@ -118,21 +134,22 @@ def _is_valid_time_since_last_checkpoint(node_stats, staker_stats, max_hours=1) 
 
 
 def _tweet_network_stats() -> None:
-    node_stats, staker_stats = _fetch_stats()
+    node_stats, staker_stats = _fetch_rocketpool_stats()
     should_tweet = _is_valid_time_since_last_checkpoint(node_stats, staker_stats, 1)
     if not should_tweet:
         return
 
+    # ETH stats
+    eth_price_usd, active_eth_validators = _fetch_eth_stats()
+
     # Staking stats
     staker_eth_in_deposit_pool = _wei_to_eth(staker_stats["stakerETHWaitingInDepositPool"])
-    staker_eth_in_protocol = _wei_to_eth(staker_stats["stakerETHInProtocol"])
-    eth_used_percent = (staker_eth_in_deposit_pool / staker_eth_in_protocol) * 100
 
     # Node stats
     minipool_commission = _wei_to_eth(node_stats["newMinipoolFee"]) * 100
-    queued_minipool_demand = int(node_stats["queuedMinipools"]) * STAKER_ETH_PER_MINIPOOL
     node_count = int(node_stats["nodesRegistered"])
     staking_minipools = int(node_stats["stakingMinipools"])
+    percent_validators = (staking_minipools / active_eth_validators) * 100
 
     # Token stats
     rETH_price = _wei_to_eth(staker_stats["rETHExchangeRate"])
@@ -142,23 +159,23 @@ def _tweet_network_stats() -> None:
 
     tvl = (staking_minipools * ETH_PER_MINIPOOL) + \
             staker_eth_in_deposit_pool + (total_rpl_staked * rpl_price)
+    tvl_usd = tvl * eth_price_usd
 
     msg = TWEET_MSG.format(
-        tvl=tvl,
-        staker_eth_in_deposit_pool=staker_eth_in_deposit_pool,
-        eth_used_percent=eth_used_percent,
+        tvl=_pretty_print_num(tvl),
+        tvl_usd=_pretty_print_num(tvl_usd),
+        staker_eth_in_deposit_pool=_pretty_print_num(staker_eth_in_deposit_pool),
         minipool_commission=minipool_commission,
-        queued_minipool_demand=queued_minipool_demand,
         node_count=node_count,
         staking_minipools=staking_minipools,
+        percent_validators=percent_validators,
         rETH_price=rETH_price,
         rpl_price=rpl_price,
-        total_rpl_staked=total_rpl_staked,
-        effective_rpl_staked=effective_rpl_staked
+        total_rpl_staked=_pretty_print_num(total_rpl_staked),
+        effective_rpl_staked=_pretty_print_num(effective_rpl_staked)
     )
-    print(f"Sending tweet:\n{msg}")
 
-    # Send tweet
+    print(f"Sending tweet:\n{msg}")
     api = _auth_tweepy()
     api.update_status(msg)
 
