@@ -4,6 +4,7 @@ import os
 from time import time
 from typing import Dict, Tuple, Union
 
+import requests
 import tweepy
 from gql import Client, gql
 from gql.transport.requests import RequestsHTTPTransport
@@ -18,15 +19,21 @@ Staking Pool Balance: Ξ {staker_eth_in_deposit_pool}
 Commission: {minipool_commission:.2f}%
 Registered Nodes: {node_count}
 Staking Minipools: {staking_minipools}
-Total ETH Validator Share: {percent_validators:.3f}%
+ETH Validator Share: {percent_validators:.3f}%
 
 🪙 Tokens
-rETH Price: Ξ {rETH_price:.5f}
-RPL Price: Ξ {rpl_price:.5f}
-Total RPL staked: {total_rpl_staked}
-Effective RPL staked: {effective_rpl_staked}
+rETH Price: Ξ {rETH_price:.4f}
+RPL Price: Ξ {rpl_price:.4f}
+RPL staked: {total_rpl_staked} RPL
+Effective RPL staked: {effective_rpl_staked} RPL
 """
 
+BEACONCHAIN_API_URL = "https://beaconcha.in/api/v1/epoch/latest"
+COINGECKO_API_URL = (
+    "https://api.coingecko.com/api/v3/coins/ethereum?"
+    "localization=false&tickers=false&market_data=true"
+    "&community_data=false&developer_data=false&sparkline=false"
+)
 SUBGRAPH_BASE_URL = "https://gateway.thegraph.com/api/"
 SUBGRAPH_API_URL = "subgraphs/id/0xa508c16666c5b8981fa46eb32784fccc01942a71-3"
 STAKER_ETH_PER_MINIPOOL = 16
@@ -50,7 +57,7 @@ def _pretty_print_num(n) -> str:
     return '{:.{precision}f}{}'.format(
         n / 10**(3 * symbol_idx),
         NUMBER_SYMBOLS[symbol_idx],
-        precision=2 if n < 10000 else 1
+        precision=2 if n < 100000 else 1
     )
 
 
@@ -101,9 +108,15 @@ def _fetch_rocketpool_stats() -> Tuple[Dict, Dict]:
     return node_stats, staker_stats
 
 
-def _fetch_eth_stats() -> Tuple[float, float]:
-    eth_price_usd = 4200
-    active_eth_validators = 250000
+def _fetch_eth_stats() -> Tuple[decimal.Decimal, int]:
+    # Fetch # of validators from beaconcha.in
+    data = requests.get(BEACONCHAIN_API_URL).json()
+    active_eth_validators = int(data['data']['validatorscount'])
+
+    # Fetch ETH/USD price from Coingecko
+    data = requests.get(COINGECKO_API_URL).json()
+    current_price = data['market_data']['current_price']
+    eth_price_usd = decimal.Decimal(float(current_price['usd']))
     return eth_price_usd, active_eth_validators
 
 

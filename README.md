@@ -5,23 +5,26 @@
 Rocket Pool Twitter bot for daily network stat updates:
 
 ```
-💰 General 💰
-Total Value Locked: Ξ 6097.9050
-Staking Pool Balance: Ξ 479.9918
+💰 General
+TVL: Ξ 11.14k ($48.1M)
+Staking Pool Balance: Ξ 1.18k
 
-🖥️ Nodes 🖥️
+🖥️ Nodes
 Commission: 15.00%
-Registered Nodes: 276
-Staking Minipools: 34
+Registered Nodes: 347
+Staking Minipools: 95
+ETH Validator Share: 0.037%
 
-🪙 Tokens 🪙
-rETH Price: Ξ 1.0045
-RPL Price: Ξ 0.0112
-Total RPL staked: 405421.19 RPL
-Effective RPL staked: 56050.02 RPL
+🪙 Tokens
+rETH Price: Ξ 1.0050
+RPL Price: Ξ 0.0109
+RPL staked: 637.3k RPL
+Effective RPL staked: 141.9k RPL
 ```
 
-Data is pulled from the [Rocket Pool subgraph](https://github.com/Data-Nexus/rocket-pool-mainnet) created by [Data-Nexus](https://github.com/Data-Nexus) and [VGR](https://github.com/VGR-GIT).
+Rocket Pool Data is pulled from the [Rocket Pool subgraph](https://github.com/Data-Nexus/rocket-pool-mainnet) created by [Data-Nexus](https://github.com/Data-Nexus) and [VGR](https://github.com/VGR-GIT).
+
+The current ETH/USD price is taken from [CoinGecko](https://www.coingecko.com/), and total number of ETH validators is from [Beaconcha.in](https://beaconcha.in/).
 
 ## Development
 
