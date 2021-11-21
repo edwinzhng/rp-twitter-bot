@@ -13,7 +13,7 @@ fi
 
 # Build Lambda function zip
 echo "Creating lambda_function.zip"
-zip build/lambda_function.zip -j src/lambda_function.py
+zip build/lambda_function.zip -j lambda_function.py
 
 # Build Lambda layer
 echo "Creating layer.zip for Python version $1"
