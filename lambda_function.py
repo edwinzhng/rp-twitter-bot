@@ -85,6 +85,7 @@ def _fetch_rocketpool_stats() -> Tuple[Dict, Dict]:
             rocketPoolProtocols {
                 lastNetworkNodeBalanceCheckPoint {
                     stakingMinipools
+                    queuedMinipools
                     newMinipoolFee
                     nodesRegistered
                     rplPriceInETH
@@ -162,6 +163,7 @@ def _tweet_network_stats() -> None:
     minipool_commission = _wei_to_eth(node_stats["newMinipoolFee"]) * 100
     node_count = int(node_stats["nodesRegistered"])
     staking_minipools = int(node_stats["stakingMinipools"])
+    queued_minipools = int(node_stats["queuedMinipools"])
     percent_validators = (staking_minipools / active_eth_validators) * 100
 
     # Token stats
@@ -171,6 +173,7 @@ def _tweet_network_stats() -> None:
     effective_rpl_staked = _wei_to_eth(node_stats["effectiveRPLStaked"])
 
     tvl = (staking_minipools * ETH_PER_MINIPOOL) + \
+            (queued_minipools * STAKER_ETH_PER_MINIPOOL) + \
             staker_eth_in_deposit_pool + (total_rpl_staked * rpl_price)
     tvl_usd = tvl * eth_price_usd
 
