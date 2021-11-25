@@ -24,7 +24,7 @@ cp .env.sample .env
 ./build.sh 3.8
 ```
 
-2. Upload build files to Lambda and set up hourly schedule using EventBridge
+2. Upload build files to Lambda and set up hourly schedule using EventBridge. The bot currently tries to post every hour, but will only post if the latest checkpoint from the subgraph is less than an hour old, since checkpoint updates only happen approximately every 24 hours. This will need to change if the subgraph behaves differently in the future.
 
 ## Attributions
 
