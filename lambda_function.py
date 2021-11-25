@@ -52,11 +52,11 @@ def _pretty_print_num(n) -> str:
             int(math.floor(0 if n == 0 else math.log10(abs(n)) / 3))
         )
     )
-
+    value = n / 10**(3 * symbol_idx)
     return '{:.{precision}f}{}'.format(
-        n / 10**(3 * symbol_idx),
+        value,
         NUMBER_SYMBOLS[symbol_idx],
-        precision=2 if n < 100000 else 1
+        precision=2 if value < 10 or n < 10000 else 1
     )
 
 
