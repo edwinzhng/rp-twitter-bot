@@ -1,26 +1,8 @@
 # Rocket Pool Twitter Bot
 
-[Twitter @RocketPoolBot](https://twitter.com/RocketPoolBot)
+Rocket Pool Twitter bot [@RocketPoolBot](https://twitter.com/RocketPoolBot) for daily network stat updates:
 
-Rocket Pool Twitter bot for daily network stat updates:
-
-```
-💰 General
-TVL: Ξ 11.14k ($48.1M)
-Staking Pool Balance: Ξ 1.18k
-
-🖥️ Nodes
-Commission: 15.00%
-Registered Nodes: 347
-Staking Minipools: 95
-ETH Validator Share: 0.037%
-
-🪙 Tokens
-rETH Price: Ξ 1.0050
-RPL Price: Ξ 0.0109
-RPL staked: 637.3k RPL
-Effective RPL staked: 141.9k RPL
-```
+[![github-readme-twitter](https://github-readme-twitter.gazf.vercel.app/api?id=RocketPoolBot)](https://twitter.com/RocketPoolBot)
 
 Rocket Pool Data is pulled from the [Rocket Pool subgraph](https://github.com/Data-Nexus/rocket-pool-mainnet) created by [Data-Nexus](https://github.com/Data-Nexus) and [VGR](https://github.com/VGR-GIT).
 

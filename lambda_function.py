@@ -1,8 +1,7 @@
-import decimal
 import math
 import os
 from time import time
-from typing import Dict, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
 import requests
 import tweepy
@@ -12,18 +11,18 @@ from web3 import Web3
 
 TWEET_MSG = """
 💰 General
-TVL: Ξ {tvl} (${tvl_usd})
-Staking Pool Balance: Ξ {staker_eth_in_deposit_pool}
+TVL: Ξ{tvl} (${tvl_usd})
+Staking Pool Balance: Ξ{staker_eth_in_deposit_pool}
 
 🖥️ Nodes
 Commission: {minipool_commission:.2f}%
 Registered Nodes: {node_count}
 Staking Minipools: {staking_minipools}
-ETH Validator Share: {percent_validators:.3f}%
+ETH Validator Share: {percent_validators:.2f}%
 
 🪙 Tokens
-rETH Price: Ξ {rETH_price:.4f}
-RPL Price: Ξ {rpl_price:.4f}
+rETH Price: Ξ{rETH_price:.4f} ({rETH_apy:.1f}% APY)
+RPL Price: Ξ{rpl_price:.4f}
 RPL staked: {total_rpl_staked} RPL
 Effective RPL staked: {effective_rpl_staked} RPL
 """
@@ -61,13 +60,13 @@ def _pretty_print_num(n) -> str:
     )
 
 
-def _wei_to_eth(val: Union[str, int]) -> decimal.Decimal:
+def _wei_to_eth(val: Union[str, int]) -> float:
     if type(val) == str:
         val = int(val)
-    return Web3.fromWei(val, 'ether')
+    return float(Web3.fromWei(val, 'ether'))
 
 
-def _fetch_rocketpool_stats() -> Tuple[Dict, Dict]:
+def _execute_rocketpool_gql(query, variable_values: Optional[Dict] = None) -> Client:
     subgraph_api_key = os.getenv("SUBGRAPH_API_KEY")
     url = SUBGRAPH_BASE_URL + f"{subgraph_api_key}/" + SUBGRAPH_API_URL
     transport = RequestsHTTPTransport(
@@ -78,8 +77,12 @@ def _fetch_rocketpool_stats() -> Tuple[Dict, Dict]:
         },
         retries=3,
     )
-
     client = Client(transport=transport, fetch_schema_from_transport=True)
+    data = client.execute(query, variable_values=variable_values)
+    return data
+
+
+def _fetch_rocketpool_stats() -> Tuple[Dict, Dict]:
     query = gql('''
         query protocolMetrics {
             rocketPoolProtocols {
@@ -94,6 +97,7 @@ def _fetch_rocketpool_stats() -> Tuple[Dict, Dict]:
                     blockTime
                 }
                 lastNetworkStakerBalanceCheckPoint {
+                    previousCheckpointId
                     stakerETHWaitingInDepositPool
                     rETHExchangeRate
                     blockTime
@@ -101,15 +105,30 @@ def _fetch_rocketpool_stats() -> Tuple[Dict, Dict]:
             }
         }
     ''')
-
-    data = client.execute(query)
+    data = _execute_rocketpool_gql(query)
     data = data["rocketPoolProtocols"][0]
     node_stats = data["lastNetworkNodeBalanceCheckPoint"]
     staker_stats = data["lastNetworkStakerBalanceCheckPoint"]
     return node_stats, staker_stats
 
 
-def _fetch_eth_stats() -> Tuple[decimal.Decimal, int]:
+def _fetch_network_staker_balance(checkpointId) -> Dict:
+    query = gql('''
+        query networkStakerBalanceCheckpoint($checkpointId: ID!) {
+            networkStakerBalanceCheckpoint(id: $checkpointId) {
+                id
+                previousCheckpointId
+                rETHExchangeRate
+                blockTime
+            }
+        }
+    ''')
+    data = _execute_rocketpool_gql(query, variable_values={"checkpointId": checkpointId})
+    network_staker_stats = data["networkStakerBalanceCheckpoint"]
+    return network_staker_stats
+
+
+def _fetch_eth_stats() -> Tuple[float, int]:
     # Fetch # of validators from beaconcha.in
     data = requests.get(BEACONCHAIN_API_URL).json()
     active_eth_validators = int(data['data']['validatorscount'])
@@ -117,7 +136,7 @@ def _fetch_eth_stats() -> Tuple[decimal.Decimal, int]:
     # Fetch ETH/USD price from Coingecko
     data = requests.get(COINGECKO_API_URL).json()
     current_price = data['market_data']['current_price']
-    eth_price_usd = decimal.Decimal(float(current_price['usd']))
+    eth_price_usd = float(current_price['usd'])
     return eth_price_usd, active_eth_validators
 
 
@@ -147,6 +166,23 @@ def _is_valid_time_since_last_checkpoint(node_stats, staker_stats, max_hours=1) 
     return True
 
 
+def _compute_rETH_apy(staker_stats):
+    # Fetch previous checkpoint stats
+    prev_staker_stats = _fetch_network_staker_balance(staker_stats["previousCheckpointId"])
+
+    # Calculate time period
+    block_time_diff = int(staker_stats["blockTime"]) - int(prev_staker_stats["blockTime"])
+    seconds_per_year = 365 * 24 * 60 * 60
+    compounding_periods = seconds_per_year / block_time_diff
+
+    # Compute current APY
+    current_rate = _wei_to_eth(float(staker_stats["rETHExchangeRate"]))
+    prev_rate = _wei_to_eth(float(prev_staker_stats["rETHExchangeRate"]))
+    rETH_yield = current_rate / prev_rate
+    rETH_apy = 100 * ((rETH_yield**compounding_periods) - 1)
+    return rETH_apy
+
+
 def _tweet_network_stats() -> None:
     node_stats, staker_stats = _fetch_rocketpool_stats()
     should_tweet = _is_valid_time_since_last_checkpoint(node_stats, staker_stats, 1)
@@ -171,6 +207,7 @@ def _tweet_network_stats() -> None:
     rpl_price = _wei_to_eth(node_stats["rplPriceInETH"])
     total_rpl_staked = _wei_to_eth(node_stats["rplStaked"])
     effective_rpl_staked = _wei_to_eth(node_stats["effectiveRPLStaked"])
+    rETH_apy = _compute_rETH_apy(staker_stats)
 
     tvl = (staking_minipools * ETH_PER_MINIPOOL) + \
             (queued_minipools * STAKER_ETH_PER_MINIPOOL) + \
@@ -186,6 +223,7 @@ def _tweet_network_stats() -> None:
         staking_minipools=staking_minipools,
         percent_validators=percent_validators,
         rETH_price=rETH_price,
+        rETH_apy=rETH_apy,
         rpl_price=rpl_price,
         total_rpl_staked=_pretty_print_num(total_rpl_staked),
         effective_rpl_staked=_pretty_print_num(effective_rpl_staked)
