@@ -10,21 +10,19 @@ from gql.transport.requests import RequestsHTTPTransport
 from web3 import Web3
 
 TWEET_MSG = """
-💰 General
+🪙 Staking
 TVL: Ξ{tvl} (${tvl_usd})
-Staking Pool Balance: Ξ{staker_eth_in_deposit_pool}
+Staking Pool: Ξ{staker_eth_in_deposit_pool}
+rETH Price: Ξ{rETH_price:.4f} ({rETH_apy:.1f}% APY)
+Average Commission: {avg_minipool_commission:.2f}%
 
 🖥️ Nodes
-Commission: {minipool_commission:.2f}%
 Registered Nodes: {node_count}
 Staking Minipools: {staking_minipools}
-ETH Validator Share: {percent_validators:.2f}%
-
-🪙 Tokens
-rETH Price: Ξ{rETH_price:.4f} ({rETH_apy:.1f}% APY)
+ETH Validator Share: {percent_validators:.3f}%
+Commission: {minipool_commission:.2f}%
 RPL Price: Ξ{rpl_price:.4f}
-RPL staked: {total_rpl_staked} RPL
-Effective RPL staked: {effective_rpl_staked} RPL
+RPL Staked: {total_rpl_staked} RPL (Effective {effective_rpl_staked})
 """
 
 BEACONCHAIN_API_URL = "https://beaconcha.in/api/v1/epoch/latest"
@@ -90,6 +88,7 @@ def _fetch_rocketpool_stats() -> Tuple[Dict, Dict]:
                     stakingMinipools
                     queuedMinipools
                     newMinipoolFee
+                    averageFeeForActiveMinipools
                     nodesRegistered
                     rplPriceInETH
                     rplStaked
@@ -197,6 +196,7 @@ def _tweet_network_stats() -> None:
 
     # Node stats
     minipool_commission = _wei_to_eth(node_stats["newMinipoolFee"]) * 100
+    avg_minipool_commission = _wei_to_eth(node_stats["averageFeeForActiveMinipools"]) * 100
     node_count = int(node_stats["nodesRegistered"])
     staking_minipools = int(node_stats["stakingMinipools"])
     queued_minipools = int(node_stats["queuedMinipools"])
@@ -219,8 +219,9 @@ def _tweet_network_stats() -> None:
         tvl_usd=_pretty_print_num(tvl_usd),
         staker_eth_in_deposit_pool=_pretty_print_num(staker_eth_in_deposit_pool),
         minipool_commission=minipool_commission,
-        node_count=node_count,
-        staking_minipools=staking_minipools,
+        avg_minipool_commission=avg_minipool_commission,
+        node_count=_pretty_print_num(node_count),
+        staking_minipools=_pretty_print_num(staking_minipools),
         percent_validators=percent_validators,
         rETH_price=rETH_price,
         rETH_apy=rETH_apy,
@@ -229,7 +230,7 @@ def _tweet_network_stats() -> None:
         effective_rpl_staked=_pretty_print_num(effective_rpl_staked)
     )
 
-    print(f"Sending tweet:\n{msg}")
+    print(f"Sending tweet: {msg}")
     api = _auth_tweepy()
     api.update_status(msg)
 
