@@ -170,8 +170,11 @@ def _is_valid_time_since_last_checkpoint(node_stats, staker_stats, max_hours=1) 
 
 
 def _compute_rETH_apy(staker_stats):
-    # Fetch previous checkpoint stats
-    prev_staker_stats = _fetch_network_staker_balance(staker_stats["previousCheckpointId"])
+    # Average APY over num_lookback_days
+    num_lookback_days = 3
+    prev_staker_stats = staker_stats
+    for _ in range(num_lookback_days):
+        prev_staker_stats = _fetch_network_staker_balance(prev_staker_stats["previousCheckpointId"])
 
     # Calculate time period
     block_time_diff = int(staker_stats["blockTime"]) - int(prev_staker_stats["blockTime"])
