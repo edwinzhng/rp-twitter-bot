@@ -19,7 +19,7 @@ Average Commission: {avg_minipool_commission:.2f}%
 🖥️ Nodes
 Registered Nodes: {node_count}
 Staking Minipools: {staking_minipools}
-ETH Validator Share: {percent_validators:.3f}%
+ETH Validator Share: {percent_validators:.2f}%
 Commission: {minipool_commission:.2f}%
 RPL Price: Ξ{rpl_price:.4f}
 RPL Staked: {total_rpl_staked} RPL (Effective {effective_rpl_staked})
@@ -50,12 +50,16 @@ def _pretty_print_num(n) -> str:
             int(math.floor(0 if n == 0 else math.log10(abs(n)) / 3))
         )
     )
+
     value = n / 10**(3 * symbol_idx)
-    return '{:.{precision}f}{}'.format(
-        value,
-        NUMBER_SYMBOLS[symbol_idx],
-        precision=2 if value < 10 or n < 10000 else 1
-    )
+    symbol = NUMBER_SYMBOLS[symbol_idx]
+    if n < 1000 and n.is_integer():
+        precision = 0
+    elif value < 10 or n < 10000:
+        precision = 2
+    else:
+        precision = 1
+    return '{:.{precision}f}{}'.format(value, symbol, precision=precision)
 
 
 def _wei_to_eth(val: Union[str, int]) -> float:
