@@ -11,7 +11,7 @@ from web3 import Web3
 
 TWEET_MSG = """
 🪙 Staking
-TVL: Ξ{tvl} (${tvl_usd})
+TVL: Ξ{tvl} ({tvl_change}) - ${tvl_usd}
 Staking Pool: Ξ{staker_eth_in_deposit_pool}
 rETH Price: Ξ{rETH_price:.4f} ({rETH_apy:.1f}% APY)
 Average Commission: {avg_minipool_commission:.2f}%
@@ -79,7 +79,7 @@ def _execute_rocketpool_gql(query, variable_values: Optional[Dict] = None) -> Cl
         },
         retries=3,
     )
-    client = Client(transport=transport, fetch_schema_from_transport=True)
+    client = Client(transport=transport, fetch_schema_from_transport=False)
     data = client.execute(query, variable_values=variable_values)
     return data
 
@@ -89,6 +89,7 @@ def _fetch_rocketpool_stats() -> Tuple[Dict, Dict]:
         query protocolMetrics {
             rocketPoolProtocols {
                 lastNetworkNodeBalanceCheckPoint {
+                    previousCheckpointId
                     stakingMinipools
                     queuedMinipools
                     newMinipoolFee
@@ -117,7 +118,7 @@ def _fetch_rocketpool_stats() -> Tuple[Dict, Dict]:
 
 def _fetch_network_staker_balance(checkpointId) -> Dict:
     query = gql('''
-        query networkStakerBalanceCheckpoint($checkpointId: ID!) {
+        query stakerBalance($checkpointId: ID!) {
             networkStakerBalanceCheckpoint(id: $checkpointId) {
                 id
                 previousCheckpointId
@@ -129,6 +130,36 @@ def _fetch_network_staker_balance(checkpointId) -> Dict:
     data = _execute_rocketpool_gql(query, variable_values={"checkpointId": checkpointId})
     network_staker_stats = data["networkStakerBalanceCheckpoint"]
     return network_staker_stats
+
+
+def _fetch_tvl_yesterday(stakerCheckpointId, nodeCheckpointId) -> Dict:
+    query = gql('''
+        query nodeBalance($stakerCheckpointId: ID!, $nodeCheckpointId: ID!) {
+            networkStakerBalanceCheckpoint(id: $stakerCheckpointId) {
+                stakerETHWaitingInDepositPool
+            }
+            networkNodeBalanceCheckpoint(id: $nodeCheckpointId) {
+                stakingMinipools
+                queuedMinipools
+                rplPriceInETH
+                rplStaked
+            }
+        }
+    ''')
+    variables = {"stakerCheckpointId": stakerCheckpointId, "nodeCheckpointId": nodeCheckpointId}
+    data = _execute_rocketpool_gql(query, variable_values=variables)
+    staker_stats = data["networkStakerBalanceCheckpoint"]
+    node_stats = data["networkNodeBalanceCheckpoint"]
+
+    staker_eth_in_deposit_pool = _wei_to_eth(staker_stats["stakerETHWaitingInDepositPool"])
+    staking_minipools = int(node_stats["stakingMinipools"])
+    queued_minipools = int(node_stats["queuedMinipools"])
+    rpl_price = _wei_to_eth(node_stats["rplPriceInETH"])
+    total_rpl_staked = _wei_to_eth(node_stats["rplStaked"])
+    tvl = (staking_minipools * ETH_PER_MINIPOOL) + \
+            (queued_minipools * STAKER_ETH_PER_MINIPOOL) + \
+            staker_eth_in_deposit_pool + (total_rpl_staked * rpl_price)
+    return tvl
 
 
 def _fetch_eth_stats() -> Tuple[float, int]:
@@ -200,6 +231,11 @@ def _tweet_network_stats() -> None:
 
     # Staking stats
     staker_eth_in_deposit_pool = _wei_to_eth(staker_stats["stakerETHWaitingInDepositPool"])
+    rETH_price = _wei_to_eth(staker_stats["rETHExchangeRate"])
+    rpl_price = _wei_to_eth(node_stats["rplPriceInETH"])
+    total_rpl_staked = _wei_to_eth(node_stats["rplStaked"])
+    effective_rpl_staked = _wei_to_eth(node_stats["effectiveRPLStaked"])
+    rETH_apy = _compute_rETH_apy(staker_stats)
 
     # Node stats
     minipool_commission = _wei_to_eth(node_stats["newMinipoolFee"]) * 100
@@ -209,20 +245,23 @@ def _tweet_network_stats() -> None:
     queued_minipools = int(node_stats["queuedMinipools"])
     percent_validators = (staking_minipools / active_eth_validators) * 100
 
-    # Token stats
-    rETH_price = _wei_to_eth(staker_stats["rETHExchangeRate"])
-    rpl_price = _wei_to_eth(node_stats["rplPriceInETH"])
-    total_rpl_staked = _wei_to_eth(node_stats["rplStaked"])
-    effective_rpl_staked = _wei_to_eth(node_stats["effectiveRPLStaked"])
-    rETH_apy = _compute_rETH_apy(staker_stats)
-
     tvl = (staking_minipools * ETH_PER_MINIPOOL) + \
             (queued_minipools * STAKER_ETH_PER_MINIPOOL) + \
             staker_eth_in_deposit_pool + (total_rpl_staked * rpl_price)
     tvl_usd = tvl * eth_price_usd
+    tvl_yesterday = _fetch_tvl_yesterday(
+        staker_stats["previousCheckpointId"],
+        node_stats["previousCheckpointId"]
+    )
+    tvl_diff = ((tvl - tvl_yesterday) / tvl_yesterday) * 100
+    if tvl_diff >= 0:
+        tvl_change = f"📈+{abs(tvl_diff):.1f}%"
+    else:
+        tvl_change = f"📉-{abs(tvl_diff):.1f}%"
 
     msg = TWEET_MSG.format(
         tvl=_pretty_print_num(tvl),
+        tvl_change=tvl_change,
         tvl_usd=_pretty_print_num(tvl_usd),
         staker_eth_in_deposit_pool=_pretty_print_num(staker_eth_in_deposit_pool),
         minipool_commission=minipool_commission,
