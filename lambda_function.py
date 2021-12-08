@@ -22,7 +22,7 @@ Staking Minipools: {staking_minipools}
 ETH Validator Share: {percent_validators:.2f}%
 Commission: {minipool_commission:.2f}%
 RPL Price: Ξ{rpl_price:.4f}
-RPL Staked: {total_rpl_staked} RPL (Effective {effective_rpl_staked})
+RPL Staked: {total_rpl_staked} (Effective {effective_rpl_staked})
 """
 
 BEACONCHAIN_API_URL = "https://beaconcha.in/api/v1/epoch/latest"
