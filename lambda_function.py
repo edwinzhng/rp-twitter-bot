@@ -194,10 +194,11 @@ def _is_valid_time_since_last_checkpoint(node_stats, staker_stats, max_hours=1) 
     print(f"Node checkpoint last updated {node_ckpt_diff_hours:.2f} hours ago")
     print(f"Staker checkpoint last updated {staker_ckpt_diff_hours:.2f} hours ago")
 
-    if node_ckpt_diff_hours > max_hours or staker_ckpt_diff_hours > max_hours:
-        print(f"Time since last checkpoint longer than {max_hours} hour(s), skipping tweet")
-        return False
-    return True
+    if node_ckpt_diff_hours < max_hours or staker_ckpt_diff_hours < max_hours:
+        return True
+
+    print(f"Time since last checkpoint longer than {max_hours} hour(s), skipping tweet")
+    return False
 
 
 def _compute_rETH_apy(staker_stats):
