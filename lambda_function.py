@@ -1,8 +1,12 @@
 import math
 import os
+import re
+import tempfile
+from collections import defaultdict
 from time import time
 from typing import Dict, Optional, Tuple, Union
 
+import plotly.express as px
 import requests
 import tweepy
 from gql import Client, gql
@@ -26,6 +30,11 @@ RPL Staked: {total_rpl_staked} (Effective {effective_rpl_staked})
 """
 
 BEACONCHAIN_API_URL = "https://beaconcha.in/api/v1/epoch/latest"
+BEACONCHAIN_BLOCKS_URL = (
+    "https://beaconcha.in/blocks/data?draw=0&"
+    "start={start}&length=100&search%5Bvalue%5D=RP-"
+)
+
 COINGECKO_API_URL = (
     "https://api.coingecko.com/api/v3/coins/ethereum?"
     "localization=false&tickers=false&market_data=true"
@@ -221,6 +230,57 @@ def _compute_rETH_apy(staker_stats):
     return rETH_apy
 
 
+def _plot_clients(clients: Dict[str, int]):
+    names = ["Lighthouse", "Nimbus", "Prysm", "Teku"]
+    values = [clients["L"], clients["N"], clients["P"], clients["T"]]
+    colors = ["#CAB8FF", "#FCFFA6", "#C1FFD7", "#B5DEFF"]
+    fig = px.pie(
+        names=names,
+        values=values,
+        color_discrete_sequence=colors
+    )
+    fig['data'][0].update({
+        'textinfo': 'label+value+percent',
+        'texttemplate': '<b>%{label}</b></br></br>%{value} (%{percent})', 
+        'textposition': 'outside',
+        'showlegend': False
+    })
+    fig.update_layout(
+        margin=dict(l=10, r=10, t=60, b=10),
+        title_text='Rocket Pool Block Proposals',
+        title_x=0.5,
+        title_font={"size": 28}
+    )
+    return fig
+
+
+def _fetch_node_client_diversity():
+    print("Fetching client diversity...")
+    blocks = []
+    blocks_url = BEACONCHAIN_BLOCKS_URL.format(start=0)
+    res = requests.get(blocks_url).json()
+    records = res["recordsFiltered"]
+    blocks.extend(res["data"])
+
+    cur_start = 100
+    while len(blocks) < records:
+        blocks_url = BEACONCHAIN_BLOCKS_URL.format(start=cur_start)
+        res = requests.get(blocks_url).json()
+        blocks.extend(res["data"])
+        cur_start += 100
+
+    assert len(blocks) == records, f"Only fetched {len(blocks)} RPL blocks of {records}"
+    clients = defaultdict(int)
+    client_regex = r'q=RP-\w+'
+    for block in blocks:
+        graffiti = block[-1]
+        match = re.search(client_regex, graffiti)
+        if match:
+            client = match.group(0)[-1]
+            clients[client] += 1
+    return clients
+
+
 def _tweet_network_stats() -> None:
     node_stats, staker_stats = _fetch_rocketpool_stats()
     should_tweet = _is_valid_time_since_last_checkpoint(node_stats, staker_stats, 1)
@@ -277,9 +337,15 @@ def _tweet_network_stats() -> None:
         effective_rpl_staked=_pretty_print_num(effective_rpl_staked)
     )
 
+    # Client diversity
+    clients = _fetch_node_client_diversity()
+    fig = _plot_clients(clients)
+
     print(f"Sending tweet: {msg}")
     api = _auth_tweepy()
-    api.update_status(msg)
+    with tempfile.NamedTemporaryFile() as img_file:
+        fig.write_image(img_file.name, format="png", width=960, height=540)
+        api.update_status_with_media(status=msg, filename=img_file.name)
 
 
 def lambda_handler(event, context):
