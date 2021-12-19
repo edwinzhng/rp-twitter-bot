@@ -6,6 +6,7 @@ from collections import defaultdict
 from time import time
 from typing import Dict, Optional, Tuple, Union
 
+import dotenv
 import plotly.express as px
 import requests
 import tweepy
@@ -47,6 +48,9 @@ ETH_PER_MINIPOOL = 32
 
 
 NUMBER_SYMBOLS = ['', 'k', 'M', 'B', 'T']
+
+
+dotenv.load_dotenv()
 
 
 def _pretty_print_num(n) -> str:
@@ -281,7 +285,7 @@ def _fetch_node_client_diversity():
     return clients
 
 
-def _tweet_network_stats() -> None:
+def tweet_network_stats() -> None:
     node_stats, staker_stats = _fetch_rocketpool_stats()
     should_tweet = _is_valid_time_since_last_checkpoint(node_stats, staker_stats, 1)
     if not should_tweet:
@@ -348,7 +352,5 @@ def _tweet_network_stats() -> None:
         api.update_status_with_media(status=msg, filename=img_file.name)
 
 
-def lambda_handler(event, context):
-    """Entrypoint for deploying to AWS Lambda"""
-    _tweet_network_stats()
-    return
+if __name__ == "__main__":
+    tweet_network_stats()
