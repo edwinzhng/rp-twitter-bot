@@ -19,13 +19,13 @@ TWEET_MSG = """
 TVL: Ξ{tvl} ({tvl_change}) - ${tvl_usd}
 Staking Pool: Ξ{staker_eth_in_deposit_pool}
 rETH Price: Ξ{rETH_price:.4f} ({rETH_apy:.1f}% APY)
-Average Commission: {avg_minipool_commission:.2f}%
+Average Commission: {avg_minipool_commission:.1f}%
 
 🖥️ Nodes
 Registered Nodes: {node_count}
 Staking Minipools: {staking_minipools}
 ETH Validator Share: {percent_validators:.2f}%
-Commission: {minipool_commission:.2f}%
+Commission: {minipool_commission:.1f}%
 RPL Price: Ξ{rpl_price:.4f}
 RPL Staked: {total_rpl_staked} (Effective {effective_rpl_staked})
 """
@@ -319,7 +319,7 @@ def tweet_network_stats() -> None:
         node_stats["previousCheckpointId"]
     )
     tvl_diff = ((tvl - tvl_yesterday) / tvl_yesterday) * 100
-    if tvl_diff >= 0:
+    if tvl_diff >= 0.0:
         tvl_change = f"📈+{abs(tvl_diff):.1f}%"
     else:
         tvl_change = f"📉-{abs(tvl_diff):.1f}%"
